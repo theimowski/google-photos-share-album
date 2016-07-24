@@ -1,3 +1,4 @@
 paket.exe
 .fake
 packages/
+accounts.csv
