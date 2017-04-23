@@ -15,7 +15,7 @@ open runner
 let accounts =
     IO.File.ReadAllLines(__SOURCE_DIRECTORY__ </> "accounts.csv")
     |> Array.map (fun s -> s.Split(','))
-    |> Array.map (fun a -> a.[0], (a.[1], a.[2], a.[3]))
+    |> Array.map (fun a -> a.[0], (a.[1], a.[2]))
     |> Map.ofArray
 
 let splitBy (c: char) (s: string) =
@@ -30,7 +30,6 @@ let links =
     getBuildParam "links"
     |> splitBy ','
 
-let fromPassword = UserInputHelper.getUserPassword "gmail password:"
 
 let constructBody links =
     let linksMarkup =
@@ -40,8 +39,11 @@ let constructBody links =
 
     sprintf """Udostępniłem albumy:<br/><ul>%s</ul>""" linksMarkup
 
+let fromAddress = MailAddress("tomekheimowski@gmail.com", "Tomek Heimowski")
+let fromPassword = 
+    UserInputHelper.getUserPassword (sprintf "gmail password for %s:" fromAddress.Address)
+
 let sendMail (address, links) =
-    let fromAddress = MailAddress("tomekheimowski@gmail.com", "Tomek Heimowski")
     let toAddress = MailAddress(address, address)
     let subject =
         match links with
@@ -58,13 +60,21 @@ let sendMail (address, links) =
             DeliveryMethod = SmtpDeliveryMethod.Network)
     smtp.UseDefaultCredentials <- true
     smtp.Credentials <- NetworkCredential(fromAddress.Address, fromPassword)
-    smtp.Timeout <- 3000
+    smtp.Timeout <- 10000
     smtp.Send(msg)
 
 Target "Share" (fun _ ->
+    let who = 
+        who 
+        |> Array.map (fun (account,mail) ->
+            let pass = 
+                UserInputHelper.getUserPassword (sprintf "gmail password for %s:" account)
+            account,pass,mail)
+    
     canopy.configuration.chromeDir <- @"./packages/Selenium.WebDriver.ChromeDriver/driver"
 
     for (account,password,mail) in who do
+        
         start chrome
         
         url "https://accounts.google.com"
@@ -76,10 +86,14 @@ Target "Share" (fun _ ->
         
         let toSend =
             [ for link in links do
+                tracefn "Link %s for %s" link account
                 url link
+                sleep 3
                 click ".f8eGGd" // options
                 waitFor (fun () -> (elements ".z80M1").Length > 3)
-                let elems = (elementsWithText ".z80M1" "Pokaż w albumach" )
+                let elems = 
+                    (elementsWithText ".z80M1" "Pokaż w albumach" )
+                    |> List.append (elementsWithText ".z80M1" "Show in Albums" )
                 match elems with
                 | [elem] ->
                     click elem
@@ -87,10 +101,12 @@ Target "Share" (fun _ ->
                     press enter
                     //waitFor (fun () -> (elementsWithText ".aGJE1b" "Wyświetlam w Albumach").Length = 1)
                     let name = (element ".cL5NYb").Text
+                    sleep 3
                     yield (link,name)
                 | _ -> ()
             ]
 
+        sleep 3
         if toSend.Length > 0 then sendMail (mail, toSend)
         
         url "https://accounts.google.com/Logout"
