@@ -1,9 +1,10 @@
+FRAMEWORK: NET462
 NUGET
   remote: https://www.nuget.org/api/v2
-    canopy (1.0)
+    canopy (1.2.3)
       FSharp.Core (>= 3.0.2)
-      Selenium.WebDriver (3.0)
-    FAKE (4.45.1)
-    FSharp.Core (4.0.0.1)
-    Selenium.WebDriver (3.0)
-    Selenium.WebDriver.ChromeDriver (2.25)
+      Selenium.WebDriver (>= 3.3)
+    FAKE (4.58.6)
+    FSharp.Core (4.1.12)
+    Selenium.WebDriver (3.4)
+    Selenium.WebDriver.ChromeDriver (2.29)

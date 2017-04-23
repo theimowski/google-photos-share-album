@@ -7,10 +7,12 @@
 open System
 open System.Net
 open System.Net.Mail
+open System.Text.RegularExpressions
 
 open Fake
 open canopy
 open runner
+
 
 let accounts =
     IO.File.ReadAllLines(__SOURCE_DIRECTORY__ </> "accounts.csv")
@@ -71,7 +73,7 @@ Target "Share" (fun _ ->
                 UserInputHelper.getUserPassword (sprintf "gmail password for %s:" account)
             account,pass,mail)
     
-    canopy.configuration.chromeDir <- @"./packages/Selenium.WebDriver.ChromeDriver/driver"
+    canopy.configuration.chromeDir <- @"./packages/Selenium.WebDriver.ChromeDriver/driver/win32"
 
     for (account,password,mail) in who do
         
@@ -112,6 +114,40 @@ Target "Share" (fun _ ->
         url "https://accounts.google.com/Logout"
 
         quit()
+)
+
+Target "Links" (fun _ ->
+    canopy.configuration.chromeDir <- @"./packages/Selenium.WebDriver.ChromeDriver/driver/win32"
+    start chrome
+    url "https://accounts.google.com"
+    pin FullScreen
+    "#Email" << fromAddress.Address
+    click "#next"
+    "#Passwd" << fromPassword
+    click "#signIn"
+
+    url "https://photos.google.com/albums"
+
+    for element in elements ".MTmRkb" do
+        let titleElem = elementWithin ".mfQCMe" element
+        let dots = elementWithin ".Lw7GHd" element
+        click dots
+        let sharebutton = elementsWithText ".z80M1" "Udostępnij album" |> Seq.head
+        click sharebutton
+        sleep 3
+        let linkbutton = elements ".J2j0Cc" |> Seq.head
+        click linkbutton        
+        let ahref = elements ".gkvthf" |> Seq.head
+        let url = ahref.Text.Substring(ahref.Text.LastIndexOf "/" + 1)
+        printfn "%s %s" url titleElem.Text
+        elements ".Kxdmwd" |> Seq.head |> click
+        sleep 3
+
+    Console.ReadLine() |> ignore
+
+    url "https://accounts.google.com/Logout"
+
+    quit ()
 )
 
 RunTargetOrDefault "Share"
