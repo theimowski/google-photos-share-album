@@ -12,7 +12,7 @@ open System.Text.RegularExpressions
 open Fake
 open canopy
 open runner
-
+open OpenQA.Selenium
 
 let accounts =
     IO.File.ReadAllLines(__SOURCE_DIRECTORY__ </> "accounts.csv")
@@ -116,7 +116,7 @@ Target "Share" (fun _ ->
         quit()
 )
 
-Target "Links" (fun _ ->
+Target "Discover" (fun _ ->
     canopy.configuration.chromeDir <- @"./packages/Selenium.WebDriver.ChromeDriver/driver/win32"
     start chrome
     url "https://accounts.google.com"
@@ -128,22 +128,45 @@ Target "Links" (fun _ ->
 
     url "https://photos.google.com/albums"
 
-    for element in elements ".MTmRkb" do
-        let titleElem = elementWithin ".mfQCMe" element
-        let dots = elementWithin ".Lw7GHd" element
-        click dots
-        let sharebutton = elementsWithText ".z80M1" "Udostępnij album" |> Seq.head
-        click sharebutton
-        sleep 3
-        let linkbutton = elements ".J2j0Cc" |> Seq.head
-        click linkbutton        
-        let ahref = elements ".gkvthf" |> Seq.head
-        let url = ahref.Text.Substring(ahref.Text.LastIndexOf "/" + 1)
-        printfn "%s %s" url titleElem.Text
-        elements ".Kxdmwd" |> Seq.head |> click
-        sleep 3
+    let clickAndWait button waitSelector =
+        let rec trial left =
+            if left = 1 then
+                element waitSelector
+            else
+                click button
+                try 
+                    waitForElement waitSelector
+                    element waitSelector
+                with _ -> 
+                    trial (left - 1)
 
-    Console.ReadLine() |> ignore
+        trial 10
+
+    elementTimeout <- 1.0
+ 
+    // scroll a bit down
+    for i in [1..2] do 
+        press Keys.PageDown
+        sleep ()
+    
+    while not Console.KeyAvailable do
+        for element in elements ".MTmRkb" do
+            let titleElem = elementWithin ".mfQCMe" element
+            try 
+                let dots = elementWithin ".Lw7GHd" element
+                click dots
+                let sharebutton = elementsWithText ".z80M1" "Udostępnij album" |> Seq.head
+                let linkbutton = clickAndWait sharebutton ".ex6r4d"
+                let ahref = clickAndWait linkbutton ".gkvthf"
+                let url = ahref.Text.Substring(ahref.Text.LastIndexOf "/" + 1)
+                elements ".Kxdmwd" |> Seq.head |> click
+                printfn "%s %s" url titleElem.Text
+                if currentUrl () <> "https://photos.google.com/albums" then
+                    navigate back
+            with _ ->
+                printfn "ERROR: %s" titleElem.Text
+            sleep ()
+        press Keys.PageDown
 
     url "https://accounts.google.com/Logout"
 
