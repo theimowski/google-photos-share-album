@@ -121,11 +121,23 @@ Target "Discover" (fun _ ->
     start chrome
     url "https://accounts.google.com"
     pin FullScreen
-    "#Email" << fromAddress.Address
-    click "#next"
-    "#Passwd" << fromPassword
-    click "#signIn"
 
+    match someElement "#headingText" with
+    | Some _ ->
+        // new sign in page
+        "#identifierId" << fromAddress.Address
+        click "#identifierNext"
+        "input[aria-label=\"Enter your password\"]" << fromPassword
+        click "#passwordNext"
+    | None ->
+        // old sign in page
+        "#Email" << fromAddress.Address
+        click "#next"
+        "#Passwd" << fromPassword
+        click "#signIn"
+
+    sleep ()
+    
     url "https://photos.google.com/albums"
 
     let clickAndWait button waitSelector =
@@ -144,29 +156,35 @@ Target "Discover" (fun _ ->
 
     elementTimeout <- 1.0
  
-    // scroll a bit down
-    for i in [1..2] do 
-        press Keys.PageDown
-        sleep ()
-    
-    while not Console.KeyAvailable do
-        for element in elements ".MTmRkb" do
-            let titleElem = elementWithin ".mfQCMe" element
-            try 
-                let dots = elementWithin ".Lw7GHd" element
-                click dots
-                let sharebutton = elementsWithText ".z80M1" "Udostępnij album" |> Seq.head
-                let linkbutton = clickAndWait sharebutton ".ex6r4d"
-                let ahref = clickAndWait linkbutton ".gkvthf"
-                let url = ahref.Text.Substring(ahref.Text.LastIndexOf "/" + 1)
-                elements ".Kxdmwd" |> Seq.head |> click
-                printfn "%s %s" url titleElem.Text
-                if currentUrl () <> "https://photos.google.com/albums" then
-                    navigate back
-            with _ ->
-                printfn "ERROR: %s" titleElem.Text
-            sleep ()
-        press Keys.PageDown
+    //printfn "Scroll and press enter to start"
+    //Console.ReadLine() |> ignore
+                  
+
+    let skip =
+        IO.File.ReadAllLines "skip.txt"
+        |> Set.ofArray
+
+    let start = 31
+    let _end = 32
+
+    let albums = elements ".MTmRkb" |> List.skip (start - 1) |> List.take (_end - start)
+    for album in albums do ctrlClick album
+    let entries = 
+        [ for i in [start .. _end] do
+            switchToTab 2
+            let owner = elements ".MMYVu" |> Seq.head |> fun e -> e.GetAttribute "title"
+            let sharebutton = element "div[jscontroller=\"YafD9d\"]"
+            let linkbutton = clickAndWait sharebutton ".ex6r4d"
+            let ahref = clickAndWait linkbutton "a[jsname=\"s7JrIc\"]"
+            let title = element ".IqUHod"
+            let uri = ahref.Text.Substring(ahref.Text.LastIndexOf "/" + 1)
+            switchToTab 1
+            closeTab 2
+            yield sprintf "%d %s %s %s" i uri owner title.Text ]
+
+    entries
+    |> List.rev
+    |> List.iter (printfn "%s")
 
     url "https://accounts.google.com/Logout"
 
