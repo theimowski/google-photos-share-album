@@ -164,27 +164,35 @@ Target "Discover" (fun _ ->
         IO.File.ReadAllLines "skip.txt"
         |> Set.ofArray
 
-    let start = 31
-    let _end = 32
+    let albums =
+        [for i in [1..10] do
+            let albums = elements ".MTmRkb" |> List.take 40
+            let links = 
+                [for album in albums do
+                    let title = (elementWithin ".mfQCMe" album).Text
+                    yield album.GetAttribute("href") ]
+                    //IO.File.AppendAllText ("out", sprintf "%s %s\n" title (album.GetAttribute("href")))
+            for _ in [1..3] do
+                press Keys.PageDown
+                sleep ()
+            yield! links]
+        |> List.distinct
+        //for album in List.rev albums do ctrlClick album
 
-    let albums = elements ".MTmRkb" |> List.skip (start - 1) |> List.take (_end - start)
-    for album in albums do ctrlClick album
-    let entries = 
-        [ for i in [start .. _end] do
-            switchToTab 2
+    printfn "%A\n\n\n" albums
+
+    for album in albums do
+        try 
+            url album
             let owner = elements ".MMYVu" |> Seq.head |> fun e -> e.GetAttribute "title"
             let sharebutton = element "div[jscontroller=\"YafD9d\"]"
             let linkbutton = clickAndWait sharebutton ".ex6r4d"
             let ahref = clickAndWait linkbutton "a[jsname=\"s7JrIc\"]"
             let title = element ".IqUHod"
             let uri = ahref.Text.Substring(ahref.Text.LastIndexOf "/" + 1)
-            switchToTab 1
-            closeTab 2
-            yield sprintf "%d %s %s %s" i uri owner title.Text ]
-
-    entries
-    |> List.rev
-    |> List.iter (printfn "%s")
+            printfn "%s %s %s" uri owner title.Text
+        with e ->
+            printfn "ERROR: %s" e.Message
 
     url "https://accounts.google.com/Logout"
 
