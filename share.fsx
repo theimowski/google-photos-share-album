@@ -154,7 +154,7 @@ Target "Discover" (fun _ ->
 
         trial 10
 
-    elementTimeout <- 1.0
+    elementTimeout <- 3.0
  
     //printfn "Scroll and press enter to start"
     //Console.ReadLine() |> ignore
@@ -165,14 +165,14 @@ Target "Discover" (fun _ ->
         |> Set.ofArray
 
     let albums =
-        [for i in [1..10] do
+        [for i in [1..15    ] do
             let albums = elements ".MTmRkb" |> List.take 40
             let links = 
                 [for album in albums do
                     let title = (elementWithin ".mfQCMe" album).Text
                     yield album.GetAttribute("href") ]
                     //IO.File.AppendAllText ("out", sprintf "%s %s\n" title (album.GetAttribute("href")))
-            for _ in [1..3] do
+            for _ in [1..2] do
                 press Keys.PageDown
                 sleep ()
             yield! links]
@@ -184,15 +184,37 @@ Target "Discover" (fun _ ->
     for album in albums do
         try 
             url album
-            let owner = elements ".MMYVu" |> Seq.head |> fun e -> e.GetAttribute "title"
+            let owner, sharedWith =
+                match someElement ".MMYVu" with
+                | Some e  ->
+                    let owner = e.GetAttribute "title"
+                    let people =
+                        elements ".MMYVu"
+                        |> List.skip 1
+                        |> List.map (fun e -> e.GetAttribute "title")
+                    owner, people
+                | None -> "Not Shared", []
             let sharebutton = element "div[jscontroller=\"YafD9d\"]"
             let linkbutton = clickAndWait sharebutton ".ex6r4d"
             let ahref = clickAndWait linkbutton "a[jsname=\"s7JrIc\"]"
-            let title = element ".IqUHod"
             let uri = ahref.Text.Substring(ahref.Text.LastIndexOf "/" + 1)
-            printfn "%s %s %s" uri owner title.Text
+            let title = (element ".IqUHod").Text
+            let ch (c: string) =
+                if sharedWith |> List.exists (fun s -> s.ToLower().Contains (c.ToLower())) then "TAK" else ""
+            let peps = 
+                accounts 
+                |> Map.toList 
+                |> List.map (fst >> ch)
+                |> String.concat ","
+            printfn "%s,%s,\"%s\",%s" 
+                    uri owner title
+                    peps
         with e ->
-            printfn "ERROR: %s" e.Message
+            try
+                let title = (element ".IqUHod").Text        
+                printfn ",,%s,,,,\n%s" title e.Message
+            with _ ->
+                printfn "ERROR: %s" e.Message
 
     url "https://accounts.google.com/Logout"
 
