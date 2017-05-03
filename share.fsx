@@ -79,7 +79,7 @@ let loginToGoogle(account,password) =
         click "#next"
         "#Passwd" << password
         click "#signIn"
-    sleep ()
+    sleep 3
 
 Target "Share" (fun _ ->
     let who = 
@@ -102,7 +102,7 @@ Target "Share" (fun _ ->
         let toSend =
             [ for link in links do
                 tracefn "Link %s for %s" link account
-                url link
+                url (sprintf "https://goo.gl/photos/%s" link)
                 sleep 3
                 click ".f8eGGd" // options
                 waitFor (fun () -> (elements ".z80M1").Length > 3)
@@ -122,7 +122,7 @@ Target "Share" (fun _ ->
             ]
 
         sleep 3
-        if toSend.Length > 0 then sendMail (mail, toSend)
+        if toSend.Length > 0 && hasBuildParam "mail" then sendMail (mail, toSend)
         
         url "https://accounts.google.com/Logout"
 
