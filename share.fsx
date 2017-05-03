@@ -65,6 +65,22 @@ let sendMail (address, links) =
     smtp.Timeout <- 10000
     smtp.Send(msg)
 
+let loginToGoogle(account,password) =
+    match someElement "#headingText" with
+    | Some _ ->
+        // new sign in page
+        "#identifierId" << account
+        click "#identifierNext"
+        "input[aria-label=\"Enter your password\"]" << password
+        click "#passwordNext"
+    | None ->
+        // old sign in page
+        "#Email" << account
+        click "#next"
+        "#Passwd" << password
+        click "#signIn"
+    sleep ()
+
 Target "Share" (fun _ ->
     let who = 
         who 
@@ -81,10 +97,7 @@ Target "Share" (fun _ ->
         
         url "https://accounts.google.com"
         pin Right
-        "#Email" << account
-        click "#next"
-        "#Passwd" << password
-        click "#signIn"
+        loginToGoogle(account,password)
         
         let toSend =
             [ for link in links do
@@ -122,21 +135,7 @@ Target "Discover" (fun _ ->
     url "https://accounts.google.com"
     pin FullScreen
 
-    match someElement "#headingText" with
-    | Some _ ->
-        // new sign in page
-        "#identifierId" << fromAddress.Address
-        click "#identifierNext"
-        "input[aria-label=\"Enter your password\"]" << fromPassword
-        click "#passwordNext"
-    | None ->
-        // old sign in page
-        "#Email" << fromAddress.Address
-        click "#next"
-        "#Passwd" << fromPassword
-        click "#signIn"
-
-    sleep ()
+    loginToGoogle(fromAddress.Address, fromPassword)
     
     url "https://photos.google.com/albums"
 
