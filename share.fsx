@@ -31,6 +31,7 @@ let who =
 let links =
     getBuildParam "links"
     |> splitBy ','
+    |> Array.map (sprintf "https://goo.gl/photos/%s")
 
 
 let constructBody links =
@@ -102,7 +103,7 @@ Target "Share" (fun _ ->
         let toSend =
             [ for link in links do
                 tracefn "Link %s for %s" link account
-                url (sprintf "https://goo.gl/photos/%s" link)
+                url link
                 sleep 3
                 click ".f8eGGd" // options
                 waitFor (fun () -> (elements ".z80M1").Length > 3)
