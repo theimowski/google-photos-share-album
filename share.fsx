@@ -42,7 +42,10 @@ let constructBody links =
 
     sprintf """Udostępniłem albumy:<br/><ul>%s</ul>""" linksMarkup
 
-let fromAddress = MailAddress("tomekheimowski@gmail.com", "Tomek Heimowski")
+let fromMail = getBuildParam "mail"
+let fromName = getBuildParam "name"
+
+let fromAddress = MailAddress(fromMail, fromName)
 let fromPassword = 
     UserInputHelper.getUserPassword (sprintf "gmail password for %s:" fromAddress.Address)
 
@@ -154,7 +157,7 @@ Target "Discover" (fun _ ->
 
         trial 10
 
-    elementTimeout <- 3.0
+    elementTimeout <- 5.0
  
     //printfn "Scroll and press enter to start"
     //Console.ReadLine() |> ignore
@@ -165,23 +168,37 @@ Target "Discover" (fun _ ->
         |> Set.ofArray
 
     let albums =
-        [for i in [1..15    ] do
+        [for i in [1..50] do
             let albums = elements ".MTmRkb" |> List.take 40
+            printfn "got %d albums" albums.Length
             let links = 
-                [for album in albums do
-                    let title = (elementWithin ".mfQCMe" album).Text
-                    yield album.GetAttribute("href") ]
-                    //IO.File.AppendAllText ("out", sprintf "%s %s\n" title (album.GetAttribute("href")))
+                albums
+                |> List.choose (fun album ->
+                    try 
+                        let title = (elementWithin ".mfQCMe" album).Text
+                        try
+                            Some <| (title, album.GetAttribute "href")
+                        with _ ->
+                            printfn "can't get link for %s" title
+                            None
+                    with _ ->
+                        printfn "can't get"
+                        None)
             for _ in [1..2] do
                 press Keys.PageDown
                 sleep ()
             yield! links]
         |> List.distinct
+        |> List.filter (snd >> (<>) null)
         //for album in List.rev albums do ctrlClick album
 
-    printfn "%A\n\n\n" albums
+    printfn "LIST:\n"
+    for (title, _) in albums do
+        printfn "%s" title
 
-    for album in albums do
+    let ok = ResizeArray<_>()
+
+    for (title, album) in albums do
         try 
             url album
             let owner, sharedWith =
@@ -198,17 +215,20 @@ Target "Discover" (fun _ ->
             let linkbutton = clickAndWait sharebutton ".ex6r4d"
             let ahref = clickAndWait linkbutton "a[jsname=\"s7JrIc\"]"
             let uri = ahref.Text.Substring(ahref.Text.LastIndexOf "/" + 1)
-            let title = (element ".IqUHod").Text
+            let title = 
+                try (element ".IqUHod").Text
+                with _ -> title
             let ch (c: string) =
-                if sharedWith |> List.exists (fun s -> s.ToLower().Contains (c.ToLower())) then "TAK" else ""
+                if sharedWith |> List.exists (fun s -> s.ToLower().Contains (c.ToLower())) then "JEST" else ""
             let peps = 
                 accounts 
                 |> Map.toList 
                 |> List.map (fst >> ch)
                 |> String.concat ","
-            printfn "%s,%s,\"%s\",%s" 
-                    uri owner title
+            printfn "\"%s\",%s,%s,%s" 
+                    title owner uri  
                     peps
+            ok.Add (title)
         with e ->
             try
                 let title = (element ".IqUHod").Text        
@@ -219,6 +239,12 @@ Target "Discover" (fun _ ->
     url "https://accounts.google.com/Logout"
 
     quit ()
+
+    let oks = Set.ofSeq ok
+    let all = Set.ofSeq (albums |> List.map fst)
+    let fails = all - oks
+    for ok in oks do printfn "OK: '%s'" ok
+    for fail in fails do printfn "FAILED: '%s'" fail
 )
 
 RunTargetOrDefault "Share"
