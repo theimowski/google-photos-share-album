@@ -31,7 +31,9 @@ let who =
 let links =
     getBuildParam "links"
     |> splitBy ','
-    |> Array.map (sprintf "https://goo.gl/photos/%s")
+    |> Array.collect (fun x -> 
+        [| sprintf "https://goo.gl/photos/%s" x
+           sprintf "https://photos.app.goo.gl/%s" x |])
 
 
 let constructBody links =
@@ -85,6 +87,48 @@ let loginToGoogle(account,password) =
         click "#signIn"
     sleep 3
 
+let collect link account =
+    tracefn "Link %s for %s" link account
+    url link
+    try
+        if elementsWithText "p" "404" |> List.isEmpty |> not then
+            None // 404 - not found, one of 2 prefixes doesn't work
+        else
+            //sleep 3
+            click ".f8eGGd" // options
+            try
+                waitFor (fun () -> (elements ".z80M1").Length > 3)
+            with _ ->
+
+                // sometimes opens "activity", navigate back and forth to fix
+                navigate back
+                sleep 3
+                navigate forward
+                sleep 3
+            let elems = 
+                (elementsWithText ".z80M1" "Pokaż w albumach" )
+                |> List.append (elementsWithText ".z80M1" "Show in Albums" )
+            match elems with
+            | [elem] ->
+                click elem
+                //sleep 3
+                press enter
+                //waitFor (fun () -> (elementsWithText ".aGJE1b" "Wyświetlam w Albumach").Length = 1)
+                let name = (element ".cL5NYb").Text
+                sleep 3
+                Some (link,name)
+            | _ ->
+                let elems = 
+                    (elementsWithText ".z80M1" "Ukryj w albumach" )
+                if elems.Length > 0 then 
+                    () // already shared
+                else
+                    printfn "--> ERR: No elems found for %s" link
+                None
+    with _ ->
+        printfn "--> ERR: Other error for %s" link
+        None
+
 Target "Share" (fun _ ->
     let who = 
         who 
@@ -104,26 +148,9 @@ Target "Share" (fun _ ->
         loginToGoogle(account,password)
         
         let toSend =
-            [ for link in links do
-                tracefn "Link %s for %s" link account
-                url link
-                sleep 3
-                click ".f8eGGd" // options
-                waitFor (fun () -> (elements ".z80M1").Length > 3)
-                let elems = 
-                    (elementsWithText ".z80M1" "Pokaż w albumach" )
-                    |> List.append (elementsWithText ".z80M1" "Show in Albums" )
-                match elems with
-                | [elem] ->
-                    click elem
-                    sleep 3
-                    press enter
-                    //waitFor (fun () -> (elementsWithText ".aGJE1b" "Wyświetlam w Albumach").Length = 1)
-                    let name = (element ".cL5NYb").Text
-                    sleep 3
-                    yield (link,name)
-                | _ -> ()
-            ]
+            links
+            |> Array.choose (fun link -> collect link account)
+            |> Array.toList
 
         sleep 3
         if toSend.Length > 0 && hasBuildParam "mail" then sendMail (mail, toSend)
