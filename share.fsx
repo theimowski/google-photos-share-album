@@ -1,21 +1,31 @@
-#r @"System.Net"
+#r """paket: nuget canopy
+nuget Selenium.WebDriver.ChromeDriver
+nuget Fake.Core.Environment
+nuget Fake.Core.Target
+nuget Fake.IO.FileSystem
+nuget Fake.Core.UserInput //"""
+#load "./.fake/share.fsx/intellisense.fsx"
 
-#r @"packages/FAKE/tools/FakeLib.dll"
-#r @"packages/Selenium.WebDriver/lib/net40/WebDriver.dll"
-#r @"packages/canopy/lib/canopy.dll"
+#if !FAKE
+#r "netstandard"
+#r "Facades/netstandard" // https://github.com/ionide/ionide-vscode-fsharp/issues/839#issuecomment-396296095
+#endif
 
 open System
 open System.Net
 open System.Net.Mail
 open System.Text.RegularExpressions
 
-open Fake
-open canopy
-open runner
+open canopy.runner.classic
+open canopy.configuration
+open canopy.classic
+open canopy.types
 open OpenQA.Selenium
 
+open Fake.Core
+
 let accounts =
-    IO.File.ReadAllLines(__SOURCE_DIRECTORY__ </> "accounts.csv")
+    IO.File.ReadAllLines("accounts.csv")
     |> Array.map (fun s -> s.Split(','))
     |> Array.map (fun a -> a.[0], (a.[1], a.[2]))
     |> Map.ofArray
@@ -24,12 +34,12 @@ let splitBy (c: char) (s: string) =
     s.Split([|c|], StringSplitOptions.RemoveEmptyEntries)
 
 let who = 
-    getBuildParam "with"
+    Environment.environVar "with"
     |> splitBy ','
     |> Array.map (fun s -> Map.find s accounts)
 
 let links =
-    getBuildParam "links"
+    Environment.environVar "links"
     |> splitBy ','
 
 
@@ -41,39 +51,16 @@ let constructBody links =
 
     sprintf """Udostępniłem albumy:<br/><ul>%s</ul>""" linksMarkup
 
-let fromAddress = MailAddress("tomekheimowski@gmail.com", "Tomek Heimowski")
-let fromPassword = 
-    UserInputHelper.getUserPassword (sprintf "gmail password for %s:" fromAddress.Address)
-
-let sendMail (address, links) =
-    let toAddress = MailAddress(address, address)
-    let subject =
-        match links with
-        | [(_,name)] -> sprintf "Album '%s'" name
-        | _ -> sprintf "Albumy (%d)" links.Length
-    let body = constructBody links 
-    printfn "\n\n\n%s\n\n\n" body
-    use msg = new MailMessage(fromAddress, toAddress, Subject = subject, Body = body, IsBodyHtml = true);
-    use smtp = 
-        new SmtpClient(
-            Host = "smtp.gmail.com",
-            Port = 587,
-            EnableSsl = true,
-            DeliveryMethod = SmtpDeliveryMethod.Network)
-    smtp.UseDefaultCredentials <- true
-    smtp.Credentials <- NetworkCredential(fromAddress.Address, fromPassword)
-    smtp.Timeout <- 10000
-    smtp.Send(msg)
-
-Target "Share" (fun _ ->
+let share () =
     let who = 
         who 
         |> Array.map (fun (account,mail) ->
             let pass = 
-                UserInputHelper.getUserPassword (sprintf "gmail password for %s:" account)
+                
+                UserInput.getUserPassword (sprintf "gmail password for %s:" account)
             account,pass,mail)
     
-    canopy.configuration.chromeDir <- @"./packages/Selenium.WebDriver.ChromeDriver/driver/win32"
+    canopy.configuration.chromeDir <- @"/Users/theimowski/.nuget/packages/selenium.webdriver.chromedriver/2.45.0/driver/mac64"
 
     for (account,password,mail) in who do
         
@@ -88,7 +75,7 @@ Target "Share" (fun _ ->
         
         let toSend =
             [ for link in links do
-                tracefn "Link %s for %s" link account
+                printfn "Link %s for %s" link account
                 url link
                 sleep 3
                 click ".f8eGGd" // options
@@ -109,21 +96,21 @@ Target "Share" (fun _ ->
             ]
 
         sleep 3
-        if toSend.Length > 0 then sendMail (mail, toSend)
+        //if toSend.Length > 0 then sendMail (mail, toSend)
         
         url "https://accounts.google.com/Logout"
 
         quit()
-)
 
-Target "Discover" (fun _ ->
+
+let discover () =
     canopy.configuration.chromeDir <- @"./packages/Selenium.WebDriver.ChromeDriver/driver/win32"
     start chrome
     url "https://accounts.google.com"
     pin FullScreen
-    "#Email" << fromAddress.Address
+    //"#Email" << fromAddress.Address
     click "#next"
-    "#Passwd" << fromPassword
+    //"#Passwd" << fromPassword
     click "#signIn"
 
     url "https://photos.google.com/albums"
@@ -171,6 +158,6 @@ Target "Discover" (fun _ ->
     url "https://accounts.google.com/Logout"
 
     quit ()
-)
 
-RunTargetOrDefault "Share"
+
+share ()

@@ -1,7 +1,0 @@
-framework: net462
-source https://www.nuget.org/api/v2
-
-nuget FAKE
-nuget canopy
-nuget Selenium.WebDriver.ChromeDriver
-
